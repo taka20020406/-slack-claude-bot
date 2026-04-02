@@ -3,8 +3,8 @@ const fs = require("fs");
 const path = require("path");
 
 const TMP_DIR = "/tmp/slack-bot";
+const FONT_PATH = path.join(__dirname, "../fonts/NotoSansJP-Regular.ttf");
 
-// 一時ディレクトリを作成
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 async function generate({ title, content, filename }) {
@@ -15,9 +15,9 @@ async function generate({ title, content, filename }) {
 
     doc.pipe(stream);
 
-    // フォント（日本語対応）
-    // ※ 日本語フォントがない環境では文字化けする可能性あり
-    // 本番では Noto Sans JP などを追加してください
+    // 日本語フォント登録
+    doc.registerFont("NotoSansJP", FONT_PATH);
+    doc.font("NotoSansJP");
 
     // タイトル
     doc
@@ -33,7 +33,9 @@ async function generate({ title, content, filename }) {
       .moveDown(1);
 
     // 本文
-    doc.fontSize(12).text(content, { align: "left", lineGap: 4 });
+    doc
+      .fontSize(12)
+      .text(content, { align: "left", lineGap: 6 });
 
     // フッター
     doc
