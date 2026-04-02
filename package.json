@@ -1,7 +1,7 @@
 {
   "name": "slack-claude-bot",
-  "version": "1.0.0",
-  "description": "Slack bot powered by Claude AI",
+  "version": "2.0.0",
+  "description": "Slack AI Agent powered by Claude",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
-    "@slack/bolt": "^3.19.0"
+    "@slack/bolt": "^3.19.0",
+    "pdfkit": "^0.15.0"
   }
 }

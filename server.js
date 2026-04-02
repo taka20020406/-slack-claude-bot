@@ -1,95 +1,62 @@
 const { App } = require("@slack/bolt");
-const Anthropic = require("@anthropic-ai/sdk");
+const agent = require("./agent");
 
-// ── 環境変数 ──────────────────────────────────────────────
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   socketMode: false,
 });
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// チャンネルでのメンション
+app.event("app_mention", async ({ event, say, client }) => {
+  await handleMessage(event, say, client);
 });
 
-// 会話履歴を一時保管（メモリ内・再起動でリセット）
-const conversationHistory = {};
-
-// ── メンション or DM に反応 ───────────────────────────────
-app.event("app_mention", async ({ event, say }) => {
-  await handleMessage(event, say);
-});
-
-app.message(async ({ message, say }) => {
-  // DMのみ反応（チャンネルはメンション時のみ）
+// DM
+app.message(async ({ message, say, client }) => {
   if (message.channel_type === "im") {
-    await handleMessage(message, say);
+    await handleMessage(message, say, client);
   }
 });
 
-// ── メッセージ処理 ────────────────────────────────────────
-async function handleMessage(event, say) {
-  const userId = event.user;
+async function handleMessage(event, say, client) {
   const threadTs = event.thread_ts || event.ts;
-
-  // メンション文字列を除去（<@UXXXXXXXX> を削除）
   const userText = event.text.replace(/<@[A-Z0-9]+>/g, "").trim();
 
   if (!userText) {
-    await say({ text: "何かメッセージを送ってください！", thread_ts: threadTs });
+    await say({ text: "何か指示を送ってください！", thread_ts: threadTs });
     return;
   }
 
-  // 会話履歴の初期化
-  if (!conversationHistory[threadTs]) {
-    conversationHistory[threadTs] = [];
-  }
-
-  // ユーザーメッセージを追加
-  conversationHistory[threadTs].push({
-    role: "user",
-    content: userText,
-  });
+  // 「考え中...」を表示
+  await say({ text: ":hourglass_flowing_sand: 処理中...", thread_ts: threadTs });
 
   try {
-    // 「入力中...」を表示
-    await say({ text: ":hourglass_flowing_sand: 考え中...", thread_ts: threadTs });
+    const result = await agent.run(userText, threadTs);
 
-    // Claude API 呼び出し
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system:
-        "あなたは親切なSlackアシスタントです。日本語で簡潔に回答してください。",
-      messages: conversationHistory[threadTs],
-    });
-
-    const assistantMessage = response.content[0].text;
-
-    // アシスタントの返答を履歴に追加
-    conversationHistory[threadTs].push({
-      role: "assistant",
-      content: assistantMessage,
-    });
-
-    // 履歴が長くなりすぎたら古いものを削除（直近10往復を保持）
-    if (conversationHistory[threadTs].length > 20) {
-      conversationHistory[threadTs] = conversationHistory[threadTs].slice(-20);
+    // ファイルがある場合はSlackにアップロード
+    if (result.filePath) {
+      await client.files.uploadV2({
+        channel_id: event.channel,
+        thread_ts: threadTs,
+        file: require("fs").createReadStream(result.filePath),
+        filename: result.fileName,
+        initial_comment: result.message,
+      });
+    } else {
+      await say({ text: result.message, thread_ts: threadTs });
     }
-
-    await say({ text: assistantMessage, thread_ts: threadTs });
   } catch (error) {
-    console.error("Error calling Claude API:", error);
+    console.error("Error:", error);
     await say({
-      text: ":x: エラーが発生しました。しばらくしてからもう一度お試しください。",
+      text: ":x: エラーが発生しました。もう一度試してください。",
       thread_ts: threadTs,
     });
   }
 }
 
-// ── サーバー起動 ──────────────────────────────────────────
 (async () => {
   const port = process.env.PORT || 3000;
   await app.start(port);
-  console.log(`⚡ Slack bot is running on port ${port}`);
+  console.log(`⚡ Bot起動中 port:${port}`);
 })();
