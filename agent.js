@@ -1,3 +1,5 @@
+console.log("フォントパス確認:", require("path").join(__dirname, "../fonts/NotoSansJP-Regular.ttf"));
+console.log("フォント存在確認:", require("fs").existsSync(require("path").join(__dirname, "../fonts/NotoSansJP-Regular.ttf")));
 const Anthropic = require("@anthropic-ai/sdk");
 const pdfTool = require("./tools/pdf");
 const diagramTool = require("./tools/diagram");
